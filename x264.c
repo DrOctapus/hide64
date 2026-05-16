@@ -44,6 +44,13 @@
 #include "output/output.h"
 #include "filters/filters.h"
 
+/* --- HIDE64 GLOBALS --- */
+uint8_t *g_secret_data = NULL;
+int g_secret_data_len = 0;
+int g_secret_data_idx = 0;
+int g_secret_bit_idx = 0;
+/* ---------------------- */
+
 #define QP_MAX_SPEC (51+6*2)
 #define QP_MAX (QP_MAX_SPEC+18)
 
@@ -1005,7 +1012,8 @@ typedef enum
     OPT_DTS_COMPRESSION,
     OPT_OUTPUT_CSP,
     OPT_INPUT_RANGE,
-    OPT_RANGE
+    OPT_RANGE,
+    OPT_SECRET_FILE
 } OptionsOPT;
 
 static char short_options[] = "8A:B:b:f:hI:i:m:o:p:q:r:t:Vvw";
@@ -1179,6 +1187,7 @@ static struct option long_options[] =
     { "input-range",          required_argument, NULL, OPT_INPUT_RANGE },
     { "stitchable",           no_argument,       NULL, 0 },
     { "filler",               no_argument,       NULL, 0 },
+    { "hide",                 required_argument, NULL, OPT_SECRET_FILE },
     { NULL,                   0,                 NULL, 0 }
 };
 
@@ -1577,6 +1586,18 @@ static int parse( int argc, char **argv, x264_param_t *param, cli_opt_t *opt )
             case OPT_RANGE:
                 FAIL_IF_ERROR( parse_enum_value( optarg, x264_range_names, &param->vui.b_fullrange ), "Unknown range `%s'\n", optarg );
                 input_opt.output_range = param->vui.b_fullrange += RANGE_AUTO;
+                break;
+            case OPT_SECRET_FILE:
+                FILE *f = x264_fopen( optarg, "rb" );
+                if( f ) {
+                    fseek( f, 0, SEEK_END );
+                    g_secret_data_len = ftell( f );
+                    fseek( f, 0, SEEK_SET );
+                    g_secret_data = malloc( g_secret_data_len );
+                    fread( g_secret_data, 1, g_secret_data_len, f );
+                    fclose( f );
+                    x264_cli_log( "hide64", X264_LOG_INFO, "Loaded secret data (%d bytes)\n", g_secret_data_len );
+                }
                 break;
             default:
 generic_option:

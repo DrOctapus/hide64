@@ -19,7 +19,7 @@ def hide_data(input_mp4, secret_file, output_mp4):
         "-", # Read from stdin
         "-o", output_mp4, 
         "--no-8x8dct",
-        "--hide", secret_file # TODO
+        "--hide", secret_file
     ]
 
     print("[*] Spinning up FFmpeg and x264 instances...")
@@ -36,4 +36,4 @@ def hide_data(input_mp4, secret_file, output_mp4):
         print("[-] An error occurred during encoding.")
 
 if __name__ == "__main__":
-    hide_data("sample.mp4", "secret.txt", "final_video.mp4")
+    hide_data("./../smallest_fractal.mp4", "./../pass.txt", "./../final_video.mp4")

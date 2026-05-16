@@ -47,6 +47,11 @@
 #   include "loongarch/quant.h"
 #endif
 
+extern uint8_t *g_secret_data;
+extern int g_secret_data_len;
+extern int g_secret_data_idx;
+extern int g_secret_bit_idx;
+
 #define QUANT_ONE( coef, mf, f ) \
 { \
     if( (coef) > 0 ) \
@@ -69,6 +74,46 @@ static int quant_4x4( dctcoef dct[16], udctcoef mf[16], udctcoef bias[16] )
     int nz = 0;
     for( int i = 0; i < 16; i++ )
         QUANT_ONE( dct[i], mf[i], bias[i] );
+
+    // --- HIDE64 INJECTION ---
+    if (g_secret_data != NULL && g_secret_data_idx < g_secret_data_len) {
+        // Target index 5 (a mid-frequency coefficient). 
+        // 0 is DC (brightness), 15 is high detail (usually erased).
+        int target_idx = 5; 
+
+        // ONLY modify the coefficient if x264 didn't already round it to 0.
+        // Changing a 0 to a 1 costs too much bitrate and creates visual artifacts.
+        if (dct[target_idx] != 0) {
+            // Extract the current bit (0 or 1) from our secret payload
+            int secret_bit = (g_secret_data[g_secret_data_idx] >> g_secret_bit_idx) & 1;
+            
+            // Check if the current coefficient is odd or even
+            int is_odd = (dct[target_idx] % 2 != 0);
+
+            // Force Even = 0, Odd = 1
+            if (secret_bit == 1 && !is_odd) {
+                // If it's even, make it odd. (Add 1 if positive, subtract 1 if negative)
+                dct[target_idx] += (dct[target_idx] > 0) ? 1 : -1;
+            } 
+            else if (secret_bit == 0 && is_odd) {
+                // If it's odd, make it even.
+                dct[target_idx] += (dct[target_idx] > 0) ? 1 : -1;
+            }
+
+            // Move to the next bit
+            g_secret_bit_idx++;
+            if (g_secret_bit_idx > 7) {
+                g_secret_bit_idx = 0;     // Reset bit counter
+                g_secret_data_idx++;      // Move to the next byte in the file
+            }
+        }
+    }
+
+    // 3. Recalculate the 'nz' (Non-Zero) flag for x264's internal state
+    nz = 0;
+    for( int i = 0; i < 16; i++ ) 
+        nz |= dct[i];
+
     return !!nz;
 }
 
